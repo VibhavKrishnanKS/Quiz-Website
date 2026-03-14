@@ -69,7 +69,7 @@ const IntroSequence = ({ onStepChange, onComplete }) => {
 
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-4 sm:px-6">
-      <audio ref={audioRef} src="/assets/Sirikkadhey theme music  Remo Tamil movie  Anirudh Ravichander  Sivakarthikeyan  Keerthy Suresh.mp3" preload="auto" />
+      <audio ref={audioRef} src="assets/Sirikkadhey theme music  Remo Tamil movie  Anirudh Ravichander  Sivakarthikeyan  Keerthy Suresh.mp3" preload="auto" />
       
       {/* Starting Screen to ensure Audio Sync */}
       <AnimatePresence>

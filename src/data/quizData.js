@@ -14,9 +14,9 @@ const quizData = [
       "Yellow Chuti and Grey T-Shirt",
     ],
     correctIndex: 0, // A — Change this if needed!
-    memoryImage: "/assets/Question1_Dress.jpeg",
+    memoryImage: "assets/Question1_Dress.jpeg",
     memoryCaption: "Our very first selfie together! 💕",
-    audio: "/assets/Manjal_Veyil_Q1.mpeg",
+    audio: "assets/Manjal_Veyil_Q1.mpeg",
   },
   // Add more questions below in the same format:
   // {
@@ -24,7 +24,7 @@ const quizData = [
   //   question: "Your question here?",
   //   options: ["Option A", "Option B", "Option C", "Option D"],
   //   correctIndex: 0,
-  //   memoryImage: "/assets/Question2_Image.jpeg",
+  //   memoryImage: "assets/Question2_Image.jpeg",
   //   memoryCaption: "A beautiful memory! ✨",
   // },
 ];

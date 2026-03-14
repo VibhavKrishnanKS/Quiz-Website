@@ -94,7 +94,7 @@ const ParticleSystem = ({ introStep, mouse }) => {
 
   return (
     <>
-    <Points ref={pointsRef}>
+    <Points key={count} ref={pointsRef}>
       <PointMaterial
         transparent
         vertexColors
