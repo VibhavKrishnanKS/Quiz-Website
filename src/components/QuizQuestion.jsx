@@ -39,35 +39,30 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
     audio.volume = 0
     audioRef.current = audio
 
-    // Fade in
+    let fadeInInterval = null
+
     const startAudio = () => {
       audio.play().catch((e) => console.warn('Audio autoplay blocked:', e))
-      let fadeIn = setInterval(() => {
-        if (audio.volume < 0.8) {
+      fadeInInterval = setInterval(() => {
+        if (audio.volume < 0.75) {
           audio.volume = Math.min(audio.volume + 0.05, 0.8)
         } else {
-          clearInterval(fadeIn)
+          clearInterval(fadeInInterval)
         }
       }, 100)
-      audio._fadeIn = fadeIn
     }
 
-    // Small delay to let the transition finish before playing
     const playTimer = setTimeout(startAudio, 600)
 
-    // Cleanup: fade out then stop
     return () => {
       clearTimeout(playTimer)
-      if (audio._fadeIn) clearInterval(audio._fadeIn)
-      const fadeOut = setInterval(() => {
-        if (audio.volume > 0.05) {
-          audio.volume = Math.max(audio.volume - 0.05, 0)
-        } else {
-          clearInterval(fadeOut)
-          audio.pause()
-          audio.currentTime = 0
-        }
-      }, 50)
+      if (fadeInInterval) clearInterval(fadeInInterval)
+      
+      // Stop immediately to prevent overlapping
+      audio.pause()
+      audio.src = "" // Release the resource
+      audio.load()
+      audioRef.current = null
     }
   }, [questionData.id, questionData.audio])
 
