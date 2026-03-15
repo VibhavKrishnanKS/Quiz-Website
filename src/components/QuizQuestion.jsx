@@ -30,41 +30,54 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
     setTextInput('')
   }, [questionData.id])
 
-  // Background audio — loops while on this question, fades out on exit
+  // Aggressive Mobile Audio Management (Singleton Pattern)
   useEffect(() => {
-    if (!questionData.audio) return
+    // 1. Instantly kill any zombie audio from previous questions
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current.load();
+      audioRef.current = null;
+    }
 
-    const audio = new Audio(questionData.audio)
-    audio.loop = true
-    audio.volume = 0
-    audioRef.current = audio
+    if (!questionData.audio) return;
 
-    let fadeInInterval = null
+    // 2. Clear memory references
+    let fadeInInterval = null;
+    const audioContent = new Audio(questionData.audio);
+    audioContent.loop = true;
+    audioContent.volume = 0;
+    audioRef.current = audioContent;
 
     const startAudio = () => {
-      audio.play().catch((e) => console.warn('Audio autoplay blocked:', e))
-      fadeInInterval = setInterval(() => {
-        if (audio.volume < 0.75) {
-          audio.volume = Math.min(audio.volume + 0.05, 0.8)
-        } else {
-          clearInterval(fadeInInterval)
-        }
-      }, 100)
-    }
+      // Re-verify we are still on the same question before playing
+      if (audioRef.current === audioContent) {
+        audioContent.play().catch((e) => console.warn('Mobile autoplay blocked:', e));
+        fadeInInterval = setInterval(() => {
+          if (audioContent.volume < 0.7) {
+            audioContent.volume = Math.min(audioContent.volume + 0.1, 0.75);
+          } else {
+            clearInterval(fadeInInterval);
+          }
+        }, 150);
+      }
+    };
 
-    const playTimer = setTimeout(startAudio, 600)
+    const playTimer = setTimeout(startAudio, 800);
 
     return () => {
-      clearTimeout(playTimer)
-      if (fadeInInterval) clearInterval(fadeInInterval)
+      clearTimeout(playTimer);
+      if (fadeInInterval) clearInterval(fadeInInterval);
       
-      // Stop immediately to prevent overlapping
-      audio.pause()
-      audio.src = "" // Release the resource
-      audio.load()
-      audioRef.current = null
-    }
-  }, [questionData.id, questionData.audio])
+      // 3. Absolute destruction of the audio object on unmount/change
+      audioContent.pause();
+      audioContent.src = "";
+      audioContent.load();
+      if (audioRef.current === audioContent) {
+        audioRef.current = null;
+      }
+    };
+  }, [questionData.id, questionData.audio]);
 
   // Click handler for multiple-choice questions
   const handleOptionClick = (index) => {
