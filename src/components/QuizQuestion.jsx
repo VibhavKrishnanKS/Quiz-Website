@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Heart, Sparkles, X, Check } from 'lucide-react'
+import { ArrowRight, Heart, Sparkles, X, Check, Eye } from 'lucide-react'
 
 const optionLabels = ['A', 'B', 'C', 'D']
 
@@ -13,6 +13,10 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
   const [showTryAgain, setShowTryAgain] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
   const audioRef = useRef(null)
+  
+  // Text input specific state
+  const isTextInput = questionData.type === 'text'
+  const [textInput, setTextInput] = useState('')
 
   // Reset state when question changes
   useEffect(() => {
@@ -23,6 +27,7 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
     setWrongIndices([])
     setShowTryAgain(false)
     setImageLoaded(false)
+    setTextInput('')
   }, [questionData.id])
 
   // Background audio — loops while on this question, fades out on exit
@@ -34,10 +39,9 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
     audio.volume = 0
     audioRef.current = audio
 
-    // Small delay to let the transition finish before playing
-    const playTimer = setTimeout(() => {
+    // Fade in
+    const startAudio = () => {
       audio.play().catch((e) => console.warn('Audio autoplay blocked:', e))
-      // Fade in
       let fadeIn = setInterval(() => {
         if (audio.volume < 0.8) {
           audio.volume = Math.min(audio.volume + 0.05, 0.8)
@@ -45,10 +49,11 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
           clearInterval(fadeIn)
         }
       }, 100)
-
-      // Store fadeIn ref for cleanup
       audio._fadeIn = fadeIn
-    }, 800) // Wait for the quiz transition to settle
+    }
+
+    // Small delay to let the transition finish before playing
+    const playTimer = setTimeout(startAudio, 600)
 
     // Cleanup: fade out then stop
     return () => {
@@ -66,6 +71,7 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
     }
   }, [questionData.id, questionData.audio])
 
+  // Click handler for multiple-choice questions
   const handleOptionClick = (index) => {
     if (isCorrect || showMemory) return
     if (wrongIndices.includes(index)) return // Can't click same wrong answer
@@ -88,13 +94,40 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
         setTimeout(() => {
           setIsCorrect(true)
           setSelectedIndex(questionData.correctIndex)
-          setTimeout(() => setShowMemory(true), 1500)
+          setTimeout(() => setShowMemory(true), 4000)
         }, 1000)
       } else {
         setShowTryAgain(true)
         setTimeout(() => setShowTryAgain(false), 2000)
       }
     }
+  }
+
+  // Submit handler for text-input questions
+  const handleTextSubmit = (e) => {
+    e.preventDefault()
+    if (isCorrect || showMemory) return
+
+    // Regex check
+    const isMatch = questionData.regex && questionData.regex.test(textInput)
+    if (isMatch) {
+      setIsCorrect(true)
+      setTimeout(() => setShowMemory(true), 1500)
+    } else {
+      setAttempts(1) // Mark as wrong attempt made
+      setWrongIndices([0])
+      setShowTryAgain(true)
+      setTimeout(() => setShowTryAgain(false), 3000)
+    }
+  }
+
+  const handleRevealAnswer = () => {
+    setShowTryAgain(false)
+    setIsCorrect(true)
+    if (questionData.actualAnswer) {
+      setTextInput(questionData.actualAnswer)
+    }
+    setTimeout(() => setShowMemory(true), 4000)
   }
 
   const getOptionState = (index) => {
@@ -119,7 +152,7 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-3 sm:p-4 md:p-8 overflow-y-auto">
+    <div className="w-full h-full flex flex-col overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8">
       <AnimatePresence mode="wait">
         {!showMemory ? (
           /* ─── Question Card ─── */
@@ -129,7 +162,7 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -30, scale: 0.97, filter: 'blur(10px)' }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="relative w-full max-w-2xl z-10"
+            className="relative w-full max-w-2xl z-10 m-auto shrink-0 pb-10"
           >
             {/* Glow behind card */}
             <div className="absolute -inset-2 sm:-inset-4 bg-gradient-to-r from-google-blue/20 via-glow-purple/20 to-glow-pink/20 rounded-2xl sm:rounded-3xl blur-xl sm:blur-2xl opacity-50" />
@@ -173,71 +206,114 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
                 {questionData.question}
               </motion.h2>
 
-              {/* Options */}
+              {/* Options or Text Input */}
               <div className="space-y-2 sm:space-y-3">
-                {questionData.options.map((option, index) => {
-                  const state = getOptionState(index)
-                  const isDisabled = wrongIndices.includes(index) || isCorrect
-
-                  return (
-                    <motion.button
-                      key={index}
-                      initial={{ opacity: 0, x: -15 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.4 + index * 0.08, duration: 0.35 }}
-                      whileTap={!isDisabled ? { scale: 0.98 } : {}}
-                      onClick={() => handleOptionClick(index)}
-                      disabled={isDisabled}
-                      className={`w-full flex items-center gap-2.5 sm:gap-4 p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl border transition-all duration-300 text-left cursor-pointer ${
-                        optionStyles[state]
-                      } ${isDisabled && state !== 'correct' ? 'cursor-not-allowed' : ''}`}
-                    >
-                      {/* Option label circle */}
-                      <div
-                        className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
-                          optionIconStyles[state]
-                        }`}
+                {isTextInput ? (
+                  <form onSubmit={handleTextSubmit} className="space-y-4">
+                    <input 
+                      type="text"
+                      value={textInput}
+                      onChange={(e) => setTextInput(e.target.value)}
+                      disabled={attempts >= 1 || isCorrect}
+                      className={`w-full bg-white/5 border p-4 rounded-xl text-white outline-none focus:ring-2 focus:ring-glow-pink transition-all font-medium text-lg ${
+                        attempts >= 1 && !isCorrect 
+                        ? 'border-red-500/50 bg-red-500/10 text-red-100' 
+                        : isCorrect 
+                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100' 
+                        : 'border-white/20 text-white/90'
+                      }`}
+                      placeholder={isCorrect ? "Nailed it!" : "Type your answer here..."}
+                    />
+                    
+                    {attempts === 0 && !isCorrect && (
+                      <button 
+                        type="submit"
+                        disabled={!textInput.trim()}
+                        className="w-full bg-white/10 hover:bg-white/20 border border-white/20 p-4 rounded-xl font-bold text-white transition-all disabled:opacity-50 tracking-widest uppercase"
                       >
-                        {state === 'wrong' ? (
-                          <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        ) : state === 'correct' ? (
-                          <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        ) : (
-                          optionLabels[index]
-                        )}
-                      </div>
+                        Submit Answer
+                      </button>
+                    )}
 
-                      {/* Option text */}
-                      <span
-                        className={`text-sm sm:text-base md:text-lg font-medium transition-colors duration-300 ${
-                          state === 'wrong'
-                            ? 'text-red-400/60'
-                            : state === 'correct'
-                            ? 'text-emerald-300'
-                            : 'text-white/80'
-                        }`}
-                      >
-                        {option}
-                      </span>
-
-                      {/* Correct answer sparkle */}
-                      {state === 'correct' && (
-                        <motion.div
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          className="ml-auto"
+                    {attempts >= 1 && !isCorrect && (
+                      <div className="flex flex-col items-center space-y-4 mt-6">
+                        <p className="text-red-400 font-medium">Not quite right! 😅</p>
+                        <button 
+                          onClick={handleRevealAnswer}
+                          type="button"
+                          className="flex items-center justify-center gap-2 group relative px-8 py-3 font-bold rounded-full overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 bg-white/10 border border-glow-pink/50 text-glow-pink hover:bg-glow-pink/20"
                         >
-                          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-google-yellow" />
-                        </motion.div>
-                      )}
-                    </motion.button>
-                  )
-                })}
+                          <Eye className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                          <span>Show me the answer</span>
+                        </button>
+                      </div>
+                    )}
+                  </form>
+                ) : (
+                  questionData.options.map((option, index) => {
+                    const state = getOptionState(index)
+                    const isDisabled = wrongIndices.includes(index) || isCorrect
+
+                    return (
+                      <motion.button
+                        key={index}
+                        initial={{ opacity: 0, x: -15 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.4 + index * 0.08, duration: 0.35 }}
+                        whileTap={!isDisabled ? { scale: 0.98 } : {}}
+                        onClick={() => handleOptionClick(index)}
+                        disabled={isDisabled}
+                        className={`w-full flex items-center gap-2.5 sm:gap-4 p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl border transition-all duration-300 text-left cursor-pointer ${
+                          optionStyles[state]
+                        } ${isDisabled && state !== 'correct' ? 'cursor-not-allowed' : ''}`}
+                      >
+                        {/* Option label circle */}
+                        <div
+                          className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
+                            optionIconStyles[state]
+                          }`}
+                        >
+                          {state === 'wrong' ? (
+                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          ) : state === 'correct' ? (
+                            <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          ) : (
+                            optionLabels[index]
+                          )}
+                        </div>
+
+                        {/* Option text */}
+                        <span
+                          className={`text-sm sm:text-base md:text-lg font-medium transition-colors duration-300 flex-1 ${
+                            state === 'wrong'
+                              ? 'text-red-400/60 line-through'
+                              : state === 'correct'
+                              ? 'text-emerald-300'
+                              : 'text-white/80'
+                          }`}
+                        >
+                          {option}
+                        </span>
+
+                        {/* Correct answer sparkle */}
+                        {state === 'correct' && (
+                          <motion.div
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            className="ml-auto"
+                          >
+                            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-google-yellow" />
+                          </motion.div>
+                        )}
+                      </motion.button>
+                    )
+                  })
+                )}
               </div>
 
-              {/* Wrong answer "Try Again" message */}
+              {/* Wrong answer "Try Again" message for Multiple Choice */}
               <AnimatePresence>
-                {showTryAgain && (
+                {!isTextInput && showTryAgain && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -279,7 +355,7 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.1, filter: 'blur(20px)' }}
             transition={{ duration: 1, ease: 'easeOut' }}
-            className="relative z-10 flex flex-col items-center gap-3 sm:gap-6 w-full max-w-sm sm:max-w-lg px-3 sm:px-4"
+            className="relative z-10 flex flex-col items-center gap-3 sm:gap-6 w-full max-w-sm sm:max-w-xl px-0 sm:px-4 m-auto pb-10 shrink-0"
           >
             {/* Photo frame */}
             <div className="relative group w-full">
@@ -298,23 +374,24 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
                 className="absolute -inset-1 rounded-xl sm:rounded-2xl opacity-75 blur-sm"
               />
 
-              <div className="relative bg-black rounded-xl sm:rounded-2xl p-1 sm:p-1.5 overflow-hidden">
+              <div className="relative bg-black rounded-xl sm:rounded-2xl p-1 sm:p-1.5 overflow-hidden flex items-center justify-center">
                 {/* Loading shimmer */}
                 {!imageLoaded && (
-                  <div className="w-full aspect-[3/4] max-h-[40vh] sm:max-h-[50vh] rounded-lg sm:rounded-xl bg-white/5 animate-pulse flex items-center justify-center">
+                  <div className="w-full aspect-video min-h-[300px] md:min-h-[400px] rounded-lg sm:rounded-xl bg-white/5 animate-pulse flex items-center justify-center">
                     <Heart className="w-6 h-6 sm:w-8 sm:h-8 text-glow-pink/50 animate-pulse" />
                   </div>
                 )}
-                <motion.img
-                  src={questionData.memoryImage}
-                  alt={questionData.memoryCaption}
-                  initial={{ opacity: 0, scale: 1.1 }}
-                  animate={{ opacity: imageLoaded ? 1 : 0, scale: 1 }}
-                  transition={{ duration: 1.2 }}
-                  onLoad={() => setImageLoaded(true)}
-                  className="w-full max-h-[40vh] sm:max-h-[50vh] object-cover rounded-lg sm:rounded-xl"
-                  style={{ display: imageLoaded ? 'block' : 'none' }}
-                />
+                <div style={{ display: imageLoaded ? 'block' : 'none' }} className="w-full h-full relative">
+                  <motion.img
+                    src={questionData.memoryImage}
+                    alt={questionData.memoryCaption}
+                    initial={{ opacity: 0, scale: 1.1 }}
+                    animate={{ opacity: imageLoaded ? 1 : 0, scale: 1 }}
+                    transition={{ duration: 1.2 }}
+                    onLoad={() => setImageLoaded(true)}
+                    className="w-full h-auto max-h-[55vh] landscape:max-h-[65vh] object-contain rounded-lg sm:rounded-xl bg-black mx-auto"
+                  />
+                </div>
               </div>
 
               {/* Floating hearts */}
@@ -347,7 +424,7 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.8 }}
-              className="text-center text-base sm:text-lg md:text-xl font-light text-white/80 italic"
+              className="text-center text-sm md:text-lg font-light text-white/80 italic mt-2 px-4 shadow-lg"
             >
               {questionData.memoryCaption}
             </motion.p>
@@ -358,7 +435,7 @@ const QuizQuestion = ({ questionData, questionNumber, totalQuestions, onNext }) 
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.5, duration: 0.6 }}
               onClick={onNext}
-              className="group relative mt-1 sm:mt-2 px-8 py-3 sm:px-10 sm:py-4 text-base sm:text-lg font-bold rounded-full overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95"
+              className="group relative mt-2 mb-8 px-8 py-3 sm:px-10 sm:py-4 text-base sm:text-lg font-bold rounded-full overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-google-blue via-glow-purple to-glow-pink opacity-80 group-hover:opacity-100 transition-opacity" />
               <div className="absolute inset-0 rounded-full border border-white/20 group-hover:border-white/40 transition-colors" />
